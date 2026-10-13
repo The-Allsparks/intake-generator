@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#212121">
+  <title>Intake Lab · The Allsparks</title>
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="https://www.theallsparks.org" target="_blank" rel="noopener">
+      <img class="mark" src="/logo.png" alt="">
+      <span>The Allsparks<small>Sparking Creativity</small></span>
+    </a>
+    <nav>
+      <a href="https://plate-generator.theallsparks.workers.dev/">Plate Lab</a>
+      <a class="team-link" href="https://www.theallsparks.org" target="_blank" rel="noopener">Meet the team</a>
+    </nav>
+  </header>
+  <main>
+    <section class="intro">
+      <div class="eyebrow"><span></span> Built by FTC 36117</div>
+      <h1><span>Tubing, plugs,</span><span>and a shaft. <em>Print the roller.</em></span></h1>
+      <p>A parametric intake roller. Set the tube, the layout, and the shaft. Download a plate and a flexure plug. The model is built in your browser.</p>
+    </section>
+    <section class="workspace">
+      <form class="controls" id="form">
+        <div class="step">01 / Roller</div>
+        <h2>Geometry</h2>
+        <label for="layout">Configuration
+          <select id="layout">
+            <option value="axial">Axial tubes · two end plates</option>
+            <option value="radial">Radial spokes · single hub</option>
+          </select>
+        </label>
+        <div class="two">
+          <label for="diameter">Outside diameter (mm)
+            <input id="diameter" type="number" value="90" min="30" max="220" step="1">
+          </label>
+          <label for="width">Roller width (mm)
+            <input id="width" type="number" value="120" min="20" max="300" step="1">
+          </label>
+          <label for="count">Tubing positions
+            <input id="count" type="number" value="6" min="3" max="16" step="1">
+          </label>
+          <label for="plate">Plate thickness (mm)
+            <input id="plate" type="number" value="8" min="4" max="20" step="0.5">
+          </label>
+        </div>
+        <p class="field-note" id="width-note">Width is the full roller, from outer face to outer face.</p>
+
+        <div class="step">02 / Tubing</div>
+        <h2>What you cut</h2>
+        <label for="preset">Standard size
+          <select id="preset">
+            <option value="6.35,9.525" selected>1/4 × 3/8 in (6.35 × 9.53 mm)</option>
+            <option value="3,5">3 × 5 mm</option>
+            <option value="3,7">3 × 7 mm</option>
+            <option value="4,6">4 × 6 mm</option>
+            <option value="5,8">5 × 8 mm</option>
+            <option value="6,9">6 × 9 mm</option>
+            <option value="8,12">8 × 12 mm</option>
+            <option value="10,14">10 × 14 mm</option>
+            <option value="12.7,19.05">1/2 × 3/4 in (12.7 × 19.05 mm)</option>
+            <option value="custom">Custom ID / OD</option>
+          </select>
+        </label>
+        <div class="two">
+          <label for="id">Tube ID (mm)
+            <input id="id" type="number" value="6.35" min="0.5" step="0.05" disabled>
+          </label>
+          <label for="od">Tube OD (mm)
+            <input id="od" type="number" value="9.525" min="1" step="0.05" disabled>
+          </label>
+        </div>
+        <label for="material">Material
+          <select id="material">
+            <option>Silicone</option>
+            <option>Natural latex</option>
+            <option>TPE</option>
+            <option>Polyurethane</option>
+          </select>
+        </label>
+        <p class="field-note">Material is for your cut list. It does not change the printed parts.</p>
+
+        <div class="step">03 / Attachment</div>
+        <h2>Plug and shaft</h2>
+        <div class="two">
+          <label for="plug">Plug insertion (mm)
+            <input id="plug" type="number" value="12" min="5" max="30" step="0.5">
+          </label>
+          <label for="clearance">Plug undersize (mm)
+            <input id="clearance" type="number" value="0.2" min="0" max="1" step="0.05">
+          </label>
+          <label for="slots">Flexure slots
+            <input id="slots" type="number" value="4" min="3" max="8" step="1">
+          </label>
+          <label for="slotwidth">Slot width (mm)
+            <input id="slotwidth" type="number" value="0.8" min="0.4" max="2" step="0.1">
+          </label>
+          <label for="shaft">Shaft interface
+            <select id="shaft">
+              <option value="rex">8 mm REX</option>
+              <option value="hex">8 mm hex, across flats</option>
+              <option value="round">8 mm round</option>
+              <option value="d">6 mm D-shaft</option>
+            </select>
+          </label>
+          <label for="screw">Fastener
+            <select id="screw">
+              <option value="3">M3</option>
+              <option value="2">M2</option>
+              <option value="4">M4</option>
+            </select>
+          </label>
+        </div>
+        <label class="check" for="barbs"><input id="barbs" type="checkbox"> <span>Barbs on the outside of each plug</span></label>
+        <div class="two" id="barb-fields">
+          <label for="barbcount">Ridge count
+            <input id="barbcount" type="number" value="3" min="1" max="6" step="1">
+          </label>
+          <label for="barbheight">Ridge height (mm)
+            <input id="barbheight" type="number" value="0.45" min="0.2" max="1" step="0.05">
+          </label>
+          <label for="barbwidth">Ridge length (mm)
+            <input id="barbwidth" type="number" value="1.2" min="0.6" max="2.5" step="0.1">
+          </label>
+        </div>
+        <p class="field-note" id="barb-note">The plug is the shaft that enters the tube. Each ridge ramps up toward the tip so the tube can slide on, then drops back so it resists pulling off. Ridges start past the collar or socket.</p>
+        <label class="check" for="joined"><input id="joined" type="checkbox"> <span id="joined-label">Print the plugs as one piece with the hub</span></label>
+        <div class="notice">Each station has a hex pocket for a standard nut. Drop the nut in, then run the screw in from the plug tip. The head seats in the cone and spreads the fingers. The lip keeps the nut from pulling through. Shaft holes include 0.15 mm of clearance on each side. Print one station and test the grip before you make a full roller.</div>
+        <div class="row-buttons">
+          <button type="button" class="ghost" id="reset">Reset defaults</button>
+          <button type="button" class="ghost" id="share">Copy configuration link</button>
+          <button type="button" class="ghost" id="load">Load settings JSON</button>
+          <input id="file" type="file" accept="application/json,.json" hidden>
+        </div>
+      </form>
+
+      <div class="preview">
+        <div class="preview-head">
+          <div>
+            <div class="step">Live model</div>
+            <h2>Assembly</h2>
+          </div>
+          <span id="status-pill">Loading</span>
+        </div>
+        <div id="canvas"></div>
+        <p id="error" role="alert"></p>
+        <div class="part-toggles">
+          <label><input type="checkbox" id="show-plates" checked> Plates</label>
+          <label><input type="checkbox" id="show-plugs" checked> Plugs</label>
+          <label><input type="checkbox" id="show-tubes" checked> Tubes</label>
+        </div>
+        <label class="explode">Separate parts <input type="range" id="explode" min="0" max="36" value="0"></label>
+        <p class="drag-hint">Drag to orbit · Scroll to zoom. Tubes are shown for length only — they are not in the STL.</p>
+        <dl class="stats">
+          <div><dt>Tube wall</dt><dd id="wall">—</dd></div>
+          <div><dt>Cut length / tube</dt><dd id="cut">—</dd></div>
+          <div><dt>Printed parts</dt><dd id="parts">—</dd></div>
+          <div><dt>Fastener</dt><dd id="fastener">—</dd></div>
+        </dl>
+        <p id="shaft-line" class="field-note"></p>
+      </div>
+    </section>
+
+    <section class="downloads">
+      <div>
+        <div class="step">04 / Download</div>
+        <h2>Two STLs. Then the tubing.</h2>
+        <p id="download-copy">Print the plate twice. Print one plug for every tube end. Downloads stay off until the solid checks pass.</p>
+      </div>
+      <button class="download" id="download-plate" type="button" disabled>
+        <span><strong id="plate-name">End plate</strong><small id="plate-note">Print two, outer face on the bed</small></span>
+        <b>STL ↓</b>
+      </button>
+      <button class="download" id="download-plug" type="button" disabled>
+        <span><strong>Flexure plug</strong><small id="plug-note">Print one per tube end, base on the bed</small></span>
+        <b>STL ↓</b>
+      </button>
+      <button class="download ghost-download" id="download-scad" type="button" disabled>
+        <span><strong>OpenSCAD</strong><small>Parametric source for the same settings</small></span>
+        <b>SCAD ↓</b>
+      </button>
+      <button class="download ghost-download" id="download-json" type="button" disabled>
+        <span><strong>Settings</strong><small>JSON you can load back into this page</small></span>
+        <b>JSON ↓</b>
+      </button>
+    </section>
+
+    <section class="assembly">
+      <div class="step">From build plate to roller</div>
+      <h2>Test one station first.</h2>
+      <div class="steps">
+        <article>
+          <span>01</span>
+          <h3>Print the plate or hub</h3>
+          <p>Put the flat outer face on the bed so the collars, or the hub face with the countersinks, point up. Do not mirror the STL. The shaft opening is the profile you selected, not a plain circle.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>Print the plugs</h3>
+          <p>Base on the bed, fingers up, unless you chose one piece — then the plugs are already on the plate or hub. The screw head enters the cone at the tip. On an axial plate the nut drops into the hex opening on the outer face. On a radial hub it drops in from the top face.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>Cut tubes and try the fit</h3>
+          <p>Use the cut length on the preview. The plug is undersized by the clearance you set, then the screw is meant to spread the fingers. Turn on barbs if you want ridges on that outside surface to bite the tube. Adhesive, filament, and the screw you actually have will change the grip. This page does not certify strength or FTC legality.</p>
+        </article>
+      </div>
+      <div class="note">
+        <b>Before it goes on the robot</b>
+        <p>Check the current game manual, then have the intake inspected. Geometry is checked for a single closed plate, a single closed plug, and no overlap in the assembly. It is still a shop prototype: no thread form, no measured clamp load, and no guarantee the wedge will hold your tubing.</p>
+        <a href="https://ftc-resources.firstinspires.org/ftc/game/manual" target="_blank" rel="noopener">Check the current FTC manual ↗</a>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <span>INTAKE LAB / THE ALLSPARKS</span>
+    <span>Made for teams who make things.</span>
+    <small>Independent team tool. Not an official FIRST product.</small>
+  </footer>
+  <p id="status" class="sr" role="status" aria-live="polite">Loading the model engine…</p>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
