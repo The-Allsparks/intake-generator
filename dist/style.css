@@ -191,7 +191,29 @@ input:disabled { background: var(--surface); color: #666; }
 }
 
 .field-note { margin: -4px 0 14px; font-size: 12px; }
-#barb-fields.is-off { opacity: 0.45; }
+#barb-fields.is-off, #flange-fields.is-off, #flex-fields.is-off { opacity: 0.45; }
+
+.view-angles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.view-angles button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.view-angles button:hover { border-color: #999; }
+.view-angles button.is-on { background: var(--yellow); border-color: #c6a400; }
 
 .notice {
   margin: 4px 0 16px;

@@ -29,12 +29,27 @@
       <form class="controls" id="form">
         <div class="step">01 / Roller</div>
         <h2>Geometry</h2>
+        <label for="recipe">Known-good start
+          <select id="recipe">
+            <option value="axial">Axial roller · 90 mm · four flexures</option>
+            <option value="radial">Radial hub · 120 mm · four flexures</option>
+            <option value="tangential">Tangential hub · 140 mm · 45°</option>
+            <option value="two">Two flexures · 6 mm slots</option>
+            <option value="solid">Solid plug · end flange · no slots</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
         <label for="layout">Configuration
           <select id="layout">
             <option value="axial">Axial tubes · two end plates</option>
             <option value="radial">Radial spokes · single hub</option>
+            <option value="tangential">Tangential spokes · single hub</option>
           </select>
         </label>
+        <label for="sweep" id="sweep-label" hidden>Sweep from a straight spoke (deg)
+          <input id="sweep" type="number" value="45" min="25" max="75" step="1">
+        </label>
+        <p class="field-note" id="sweep-note" hidden>Every tube trails the same way around the hub. 25° is a short trail. 75° is close to tangent with the rim.</p>
         <div class="two">
           <label for="diameter">Outside diameter (mm)
             <input id="diameter" type="number" value="90" min="30" max="220" step="1">
@@ -88,18 +103,31 @@
         <div class="step">03 / Attachment</div>
         <h2>Plug and shaft</h2>
         <div class="two">
-          <label for="plug">Plug insertion (mm)
+          <label for="plug">Plug length (mm)
             <input id="plug" type="number" value="12" min="5" max="30" step="0.5">
           </label>
           <label for="clearance">Plug undersize (mm)
             <input id="clearance" type="number" value="0.2" min="0" max="1" step="0.05">
           </label>
           <label for="slots">Flexure slots
-            <input id="slots" type="number" value="4" min="3" max="8" step="1">
+            <input id="slots" type="number" value="4" min="0" max="8" step="1">
           </label>
+        </div>
+        <p class="field-note" id="bite-note">Plug length is the whole printed plug. Part of the base stays in the collar or hub socket. The rest slides into the tube.</p>
+        <p class="field-note">Use 0 for a solid plug, or 2 to 8 slots. One slot does not leave fingers that can spread.</p>
+        <div class="two" id="flex-fields">
           <label for="slotwidth">Slot width (mm)
             <input id="slotwidth" type="number" value="0.8" min="0.4" max="2" step="0.1">
           </label>
+          <label for="slotstart">Slot start from base (mm)
+            <input id="slotstart" type="number" min="0" max="30" step="0.5" placeholder="Tube end">
+          </label>
+          <label for="slotend">Slot end from base (mm)
+            <input id="slotend" type="number" min="0" max="30" step="0.5" placeholder="Along the plug">
+          </label>
+        </div>
+        <p class="field-note" id="flex-note">Start and end are measured from the plug base. The slots begin at the tube end. They can stop before the tip.</p>
+        <div class="two">
           <label for="shaft">Shaft interface
             <select id="shaft">
               <option value="rex">8 mm REX</option>
@@ -117,7 +145,7 @@
           </label>
         </div>
         <label class="check" for="barbs"><input id="barbs" type="checkbox"> <span>Barbs on the outside of each plug</span></label>
-        <div class="two" id="barb-fields">
+        <div class="two is-off" id="barb-fields">
           <label for="barbcount">Ridge count
             <input id="barbcount" type="number" value="3" min="1" max="6" step="1">
           </label>
@@ -129,6 +157,16 @@
           </label>
         </div>
         <p class="field-note" id="barb-note">The plug is the shaft that enters the tube. Each ridge ramps up toward the tip so the tube can slide on, then drops back so it resists pulling off. Ridges start past the collar or socket.</p>
+        <label class="check" for="flange"><input id="flange" type="checkbox"> <span>End flange on the plug tip</span></label>
+        <div class="two is-off" id="flange-fields">
+          <label for="flangethick">Flange thickness (mm)
+            <input id="flangethick" type="number" value="1.6" min="0.8" max="4" step="0.1">
+          </label>
+          <label for="flangedepth">Flange depth (mm)
+            <input id="flangedepth" type="number" value="1.2" min="0.4" max="3" step="0.1">
+          </label>
+        </div>
+        <p class="field-note" id="flange-note">The flange is the disk on the tip of the plug, the end inside the tube. Thickness runs back from the tip. Depth is how far it stands out past the plug body. Slots still begin where the tube starts, at the collar or hub.</p>
         <label class="check" for="joined"><input id="joined" type="checkbox"> <span id="joined-label">Print the plugs as one piece with the hub</span></label>
         <div class="notice">Each station has a hex pocket for a standard nut. Drop the nut in, then run the screw in from the plug tip. The head seats in the cone and spreads the fingers. The lip keeps the nut from pulling through. Shaft holes include 0.15 mm of clearance on each side. Print one station and test the grip before you make a full roller.</div>
         <div class="row-buttons">
@@ -148,14 +186,27 @@
           <span id="status-pill">Loading</span>
         </div>
         <div id="canvas"></div>
+        <div class="view-angles" id="views">
+          <button type="button" data-view="front">Front</button>
+          <button type="button" data-view="right">Right</button>
+          <button type="button" data-view="back">Back</button>
+          <button type="button" data-view="left">Left</button>
+          <button type="button" data-view="top">Top</button>
+          <button type="button" data-view="bottom">Bottom</button>
+          <button type="button" data-view="iso-fr">Iso FR</button>
+          <button type="button" data-view="iso-fl">Iso FL</button>
+          <button type="button" data-view="iso-br">Iso BR</button>
+          <button type="button" data-view="iso-bl">Iso BL</button>
+        </div>
         <p id="error" role="alert"></p>
+        <p id="adjust" class="field-note"></p>
         <div class="part-toggles">
           <label><input type="checkbox" id="show-plates" checked> Plates</label>
           <label><input type="checkbox" id="show-plugs" checked> Plugs</label>
           <label><input type="checkbox" id="show-tubes" checked> Tubes</label>
         </div>
         <label class="explode">Separate parts <input type="range" id="explode" min="0" max="36" value="0"></label>
-        <p class="drag-hint">Drag to orbit · Scroll to zoom. Tubes are shown for length only — they are not in the STL.</p>
+        <p class="drag-hint">Drag to orbit · Scroll to zoom · The buttons above jump to a side or an isometric corner. Tubes are shown for length only — they are not in the STL.</p>
         <dl class="stats">
           <div><dt>Tube wall</dt><dd id="wall">—</dd></div>
           <div><dt>Cut length / tube</dt><dd id="cut">—</dd></div>
@@ -177,7 +228,7 @@
         <b>STL ↓</b>
       </button>
       <button class="download" id="download-plug" type="button" disabled>
-        <span><strong>Flexure plug</strong><small id="plug-note">Print one per tube end, base on the bed</small></span>
+        <span><strong id="plug-title">Flexure plug</strong><small id="plug-note">Screw hole is horizontal. Lay it on its side</small></span>
         <b>STL ↓</b>
       </button>
       <button class="download ghost-download" id="download-scad" type="button" disabled>
@@ -197,12 +248,12 @@
         <article>
           <span>01</span>
           <h3>Print the plate or hub</h3>
-          <p>Put the flat outer face on the bed so the collars, or the hub face with the countersinks, point up. Do not mirror the STL. The shaft opening is the profile you selected, not a plain circle.</p>
+          <p>The STL stands with the axle vertical. Put the flat face on the bed so the collars, or the nut pockets, point up. Do not mirror the STL. The shaft opening is the profile you selected, not a plain circle.</p>
         </article>
         <article>
           <span>02</span>
           <h3>Print the plugs</h3>
-          <p>Base on the bed, fingers up, unless you chose one piece — then the plugs are already on the plate or hub. The screw head enters the cone at the tip. On an axial plate the nut drops into the hex opening on the outer face. On a radial hub it drops in from the top face.</p>
+          <p>The plug STL is already on its side, with the screw hole horizontal. Leave it that way in the slicer. Skip this print if you chose one piece — the plugs are already on the plate or hub. The screw head enters the cone at the tip. On an axial plate the nut drops into the hex opening on the outer face. On a hub it drops in from the top face.</p>
         </article>
         <article>
           <span>03</span>

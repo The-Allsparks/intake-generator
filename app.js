@@ -1,13 +1,15 @@
-import { stl } from './geometry.js';
+import { forPrint, RECIPES, stl, validate } from './geometry.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $ = (id) => document.getElementById(id);
 const worker = new Worker(new URL('./mesh-worker.js', import.meta.url), { type: 'module' });
-const keys = ['layout', 'diameter', 'width', 'count', 'plate', 'id', 'od', 'material', 'plug', 'clearance', 'slots', 'slotwidth', 'shaft', 'screw', 'joined', 'barbs', 'barbcount', 'barbheight', 'barbwidth'];
-const defaults = Object.fromEntries(keys.map((key) => [key, $(key).value]));
-defaults.preset = $('preset').value;
+const flags = new Set(['joined', 'barbs', 'flange']);
+const keys = ['layout', 'sweep', 'diameter', 'width', 'count', 'plate', 'id', 'od', 'material', 'plug', 'clearance', 'slots', 'slotwidth', 'slotstart', 'slotend', 'shaft', 'screw', 'joined', 'barbs', 'barbcount', 'barbheight', 'barbwidth', 'flange', 'flangethick', 'flangedepth'];
+const openEnds = new Set(['slotstart', 'slotend']);
+let applying = false;
+let focused = '';
 
 let requestId = 0;
 let current = null;
@@ -27,12 +29,45 @@ const pose = { plates: [], plugs: [], tubes: [] };
 function read() {
   const config = {};
   for (const key of keys) {
-    if (key === 'joined') config.joined = $('joined').checked;
-    else if (key === 'barbs') config.barbs = $('barbs').checked;
+    if (flags.has(key)) config[key] = $(key).checked;
+    else if (openEnds.has(key)) config[key] = $(key).value === '' ? null : Number($(key).value);
     else if (['layout', 'material', 'shaft'].includes(key)) config[key] = $(key).value;
     else config[key] = Number($(key).value);
   }
+  const recipe = RECIPES.find((item) => item.id === $('recipe').value);
+  if (config.slotstart == null && config.slotend == null && recipe) config.flexlen = recipe.config.flexlen;
   return config;
+}
+
+function formatValue(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return String(value);
+  if (Number.isInteger(value)) return String(value);
+  return String(Math.round(value * 1000) / 1000);
+}
+
+function writeForm(config, skip = '') {
+  applying = true;
+  for (const key of keys) {
+    if (key === skip) continue;
+    const field = $(key);
+    if (openEnds.has(key) && config[key] == null) {
+      if (field.value !== '') field.value = '';
+      continue;
+    }
+    if (config[key] == null) continue;
+    if (flags.has(key)) {
+      const next = config[key] === true;
+      if (field.checked !== next) field.checked = next;
+    } else if (['layout', 'material', 'shaft'].includes(key)) {
+      if (field.value !== String(config[key])) field.value = config[key];
+    } else {
+      const next = formatValue(config[key]);
+      if (field.value !== next) field.value = next;
+    }
+  }
+  applying = false;
+  layoutNotes();
+  matchPreset();
 }
 
 function applyPreset() {
@@ -55,29 +90,44 @@ function matchPreset() {
 }
 
 function layoutNotes() {
-  const radial = $('layout').value === 'radial';
+  const hub = $('layout').value !== 'axial';
+  const tangential = $('layout').value === 'tangential';
   const joined = $('joined').checked;
-  $('width').disabled = radial;
-  $('joined-label').textContent = radial
+  $('width').disabled = hub;
+  $('sweep-label').hidden = !tangential;
+  $('sweep-note').hidden = !tangential;
+  $('joined-label').textContent = hub
     ? 'Print the plugs as one piece with the hub'
     : 'Print the plugs as one piece with each end plate';
-  $('width-note').textContent = radial
-    ? 'Width is unused for radial spokes. Diameter is the outside of the tubes.'
-    : 'Width is the full roller, from outer face to outer face.';
-  $('plate-name').textContent = joined ? (radial ? 'Hub with plugs' : 'Plate with plugs') : (radial ? 'Hub' : 'End plate');
-  $('plate-note').textContent = joined
-    ? (radial ? 'Print one. Nut pockets open on the top face' : 'Print two. Nut pockets open on the outer face')
-    : (radial ? 'Print one. Nut pockets open on the top face' : 'Print two, outer face on the bed');
-  $('plug-note').textContent = joined ? 'Included in the plate STL' : (radial ? 'Print one per spoke, base on the bed' : 'Print one per tube end, base on the bed');
+  $('width-note').textContent = tangential
+    ? 'Diameter is the outside of the tube tips. Width is unused.'
+    : (hub
+      ? 'Width is unused for radial spokes. Diameter is the outside of the tubes.'
+      : 'Width is the full roller, from outer face to outer face.');
+  $('plate-name').textContent = joined ? (hub ? 'Hub with plugs' : 'Plate with plugs') : (hub ? 'Hub' : 'End plate');
   const barbed = $('barbs').checked;
   for (const id of ['barbcount', 'barbheight', 'barbwidth']) $(id).disabled = !barbed;
   $('barb-fields').classList.toggle('is-off', !barbed);
+  const flanged = $('flange').checked;
+  for (const id of ['flangethick', 'flangedepth']) $(id).disabled = !flanged;
+  $('flange-fields').classList.toggle('is-off', !flanged);
+  const flex = Number($('slots').value) > 0;
+  for (const id of ['slotwidth', 'slotstart', 'slotend']) $(id).disabled = !flex;
+  $('flex-fields').classList.toggle('is-off', !flex);
+  $('flex-note').textContent = flex
+    ? 'Start and end are measured from the plug base. The slots begin where the tube ends and stop before the tip flange.'
+    : 'Slot position sits out while the plug is solid.';
+  $('plug-title').textContent = flex ? 'Flexure plug' : 'Plug';
+  $('plate-note').textContent = hub
+    ? 'Print one. Axle vertical, nut pockets open upward'
+    : 'Print two. Axle vertical, outer face on the bed';
+  $('plug-note').textContent = joined ? 'Included in the plate STL' : 'Screw hole is horizontal. Lay it on its side';
   $('download-plug').hidden = joined;
   $('show-plugs').disabled = joined;
   $('show-plugs').parentElement.style.opacity = joined ? '0.45' : '1';
   $('download-copy').textContent = joined
     ? 'The plate STL includes the plugs. Downloads stay off until the solid checks pass.'
-    : (radial
+    : (hub
       ? 'Print the hub once and one plug per spoke. Downloads stay off until the solid checks pass.'
       : 'Print the plate twice. Print one plug for every tube end. Downloads stay off until the solid checks pass.');
 }
@@ -118,18 +168,28 @@ worker.onmessage = (event) => {
     setStatus(event.data.error, false);
     for (const id of ['wall', 'cut', 'parts', 'fastener']) $(id).textContent = '—';
     $('shaft-line').textContent = '';
+    $('adjust').textContent = '';
+    $('bite-note').textContent = 'Plug length is the whole printed plug. Part of the base stays in the collar or hub socket. The rest slides into the tube.';
     return;
   }
   current = event.data.result;
   $('error').textContent = '';
+  writeForm(current.config, focused);
   const info = current.derived;
   $('wall').textContent = `${info.wall.toFixed(2)} mm`;
   $('cut').textContent = `${info.tubeLength.toFixed(1)} mm`;
   $('parts').textContent = info.parts;
   $('fastener').textContent = `M${current.config.screw} nut`;
-  $('shaft-line').textContent = info.barbNote
-    ? `${info.shaft}. ${info.screwNote}. ${info.barbNote}.`
-    : `${info.shaft}. ${info.screwNote}.`;
+  $('bite-note').textContent = `${info.tubeBite.toFixed(1)} mm of the plug slides into the tube. ${info.seatBite.toFixed(1)} mm of the base stays in the ${info.seatName}. Plug length is the whole printed part.`;
+  if (current.config.slots > 0) {
+    $('flex-note').textContent = `The tube ends at ${info.tubeStop.toFixed(1)} mm from the plug base. Slots run from ${info.slotStart.toFixed(1)} to ${info.slotEnd.toFixed(1)} mm. The flange, when it is on, is the disk on the plug tip.`;
+  }
+  $('adjust').textContent = (current.adjustments || []).join(' ');
+  const sweepLine = current.config.layout === 'tangential' ? ` Tubes trail ${Number(info.sweep).toFixed(0)}° off a straight spoke.` : '';
+  const extra = [info.flangeNote, info.barbNote].filter(Boolean).join('. ');
+  $('shaft-line').textContent = extra
+    ? `${info.shaft}. ${info.screwNote}. ${extra}.${sweepLine}`
+    : `${info.shaft}. ${info.screwNote}.${sweepLine}`;
   setStatus('Ready. Plate and plug are each one solid, and they do not overlap.', true);
   setDownloads(true);
   showAssembly(current);
@@ -150,27 +210,51 @@ function download(filename, data, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+function pushBack() {
+  try {
+    const prepared = validate(read());
+    writeForm(prepared.config);
+    $('adjust').textContent = prepared.adjustments.join(' ');
+  } catch {
+    // The model still cannot build. Ranged fields are corrected when the solid succeeds.
+  }
+}
+
+function onEdit() {
+  if (applying) return;
+  $('recipe').value = 'custom';
+  schedule();
+}
+
 $('form').onsubmit = (event) => event.preventDefault();
-$('preset').onchange = () => { applyPreset(); schedule(); };
-$('layout').onchange = schedule;
-$('joined').onchange = schedule;
-$('barbs').onchange = schedule;
+$('preset').onchange = () => { if (!applying) { applyPreset(); $('recipe').value = 'custom'; schedule(); } };
+$('recipe').onchange = () => {
+  const recipe = RECIPES.find((item) => item.id === $('recipe').value);
+  if (!recipe) return;
+  writeForm(recipe.config);
+  schedule();
+};
 for (const key of keys) {
-  if (key !== 'layout' && key !== 'joined') $(key).addEventListener('input', schedule);
+  $(key).addEventListener('focus', () => { focused = key; });
+  $(key).addEventListener('input', onEdit);
+  $(key).addEventListener('change', () => {
+    if (applying) return;
+    focused = '';
+    $('recipe').value = 'custom';
+    pushBack();
+    schedule();
+  });
 }
 $('reset').onclick = () => {
-  for (const [key, value] of Object.entries(defaults)) {
-    if (key === 'joined' || key === 'barbs') $(key).checked = false;
-    else $(key).value = value;
-  }
+  $('recipe').value = 'axial';
+  writeForm(RECIPES[0].config);
   applyPreset();
   schedule();
 };
 $('share').onclick = async () => {
   const url = new URL(location.href);
   for (const key of keys) {
-    const flag = key === 'joined' || key === 'barbs';
-    url.searchParams.set(key, flag ? ($(key).checked ? '1' : '0') : $(key).value);
+    url.searchParams.set(key, flags.has(key) ? ($(key).checked ? '1' : '0') : $(key).value);
   }
   try {
     await navigator.clipboard.writeText(url.href);
@@ -189,10 +273,12 @@ $('file').onchange = async () => {
     const data = JSON.parse(await file.text());
     for (const key of keys) {
       if (data[key] == null) continue;
-      if (key === 'joined' || key === 'barbs') $(key).checked = data[key] === true || data[key] === '1' || data[key] === 'true';
+      if (flags.has(key)) $(key).checked = data[key] === true || data[key] === '1' || data[key] === 'true' || data[key] === 1;
       else $(key).value = data[key];
     }
     matchPreset();
+    $('recipe').value = 'custom';
+    pushBack();
     schedule();
   } catch {
     $('error').textContent = 'That file is not settings JSON from this page.';
@@ -202,9 +288,14 @@ $('download-plate').onclick = () => {
   if (!current) return;
   const joined = current.config.joined ? '-with-plugs' : '';
   const name = current.config.layout === 'axial' ? 'end-plate' : 'hub';
-  download(`allsparks-intake-${name}${joined}.stl`, stl(current.plate, 'Allsparks intake plate'), 'model/stl');
+  const mesh = forPrint(current.plate, 'plate');
+  download(`allsparks-intake-${name}${joined}.stl`, stl(mesh, 'Allsparks intake plate'), 'model/stl');
 };
-$('download-plug').onclick = () => current && download('allsparks-intake-plug.stl', stl(current.plug, 'Allsparks intake plug'), 'model/stl');
+$('download-plug').onclick = () => {
+  if (!current) return;
+  const mesh = forPrint(current.plug, 'plug', current.config.slots);
+  download('allsparks-intake-plug.stl', stl(mesh, 'Allsparks intake plug'), 'model/stl');
+};
 $('download-scad').onclick = () => current && download('allsparks-intake.scad', current.scad, 'text/plain');
 $('download-json').onclick = () => current && download('allsparks-intake-settings.json', JSON.stringify(current.config, null, 2), 'application/json');
 
@@ -229,10 +320,14 @@ function axialMatrix(part, explode) {
   return matrix;
 }
 
-function radialPlugMatrix(part, explode) {
+function hubPlugMatrix(part, explode) {
+  const sweep = (part.sweep || 0) * Math.PI / 180;
   const matrix = new THREE.Matrix4();
   matrix.multiply(new THREE.Matrix4().makeRotationZ(part.deg * Math.PI / 180));
-  matrix.multiply(new THREE.Matrix4().makeTranslation(part.radius + explode, 0, part.z));
+  matrix.multiply(new THREE.Matrix4().makeTranslation(part.hubR, 0, 0));
+  matrix.multiply(new THREE.Matrix4().makeRotationZ(sweep));
+  matrix.multiply(new THREE.Matrix4().makeTranslation(explode, 0, 0));
+  matrix.multiply(new THREE.Matrix4().makeTranslation(part.radius - part.hubR, 0, part.z));
   matrix.multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2));
   return matrix;
 }
@@ -240,7 +335,7 @@ function radialPlugMatrix(part, explode) {
 function applyPoses() {
   if (!current) return;
   const explode = Number($('explode').value);
-  const radial = current.config.layout === 'radial';
+  const hub = current.config.layout !== 'axial';
   pose.plates.forEach((item, index) => {
     item.matrixAutoUpdate = false;
     item.matrix.copy(axialMatrix(current.placements.plates[index], explode));
@@ -248,19 +343,17 @@ function applyPoses() {
   pose.plugs.forEach((item, index) => {
     const part = current.placements.plugs[index];
     item.matrixAutoUpdate = false;
-    item.matrix.copy(radial ? radialPlugMatrix(part, explode) : axialMatrix(part, explode));
+    item.matrix.copy(hub ? hubPlugMatrix(part, explode) : axialMatrix(part, explode));
   });
   pose.tubes.forEach((item, index) => {
     const tube = current.placements.tubes[index];
-    item.position.set(tube.x, tube.y, tube.z);
     if (tube.axis === 'z') {
+      item.position.set(tube.x, tube.y, tube.z);
       item.rotation.set(Math.PI / 2, 0, 0);
     } else {
-      const extra = explode;
-      const rad = tube.deg * Math.PI / 180;
-      const mid = Math.hypot(tube.x, tube.y) + extra;
-      item.position.set(mid * Math.cos(rad), mid * Math.sin(rad), tube.z);
-      item.rotation.set(0, 0, rad - Math.PI / 2);
+      const dir = tube.dir;
+      item.position.set(tube.x + Math.cos(dir) * explode, tube.y + Math.sin(dir) * explode, tube.z);
+      item.rotation.set(0, 0, dir - Math.PI / 2);
     }
   });
 }
@@ -294,18 +387,50 @@ function drawAssembly(result) {
   });
   applyVisibility();
   applyPoses();
-  const key = result.config.layout + ':' + Math.round(result.config.diameter) + ':' + Math.round(result.config.width);
   if (framed !== result.config.layout) {
     framed = result.config.layout;
-    const size = result.config.diameter;
-    orbit.target.set(0, 0, result.config.layout === 'axial' ? result.config.width / 2 : result.config.plate / 2);
-    camera.up.set(0, 0, 1);
-    camera.position.set(size * 0.2, -size * 1.2, result.config.layout === 'axial' ? result.config.width * 0.65 : size * 0.45);
-    camera.near = 0.1;
-    camera.far = 5000;
-    camera.updateProjectionMatrix();
-    orbit.update();
+    setView('iso-fr');
   }
+}
+
+function markView(name) {
+  for (const button of $('views').querySelectorAll('button')) {
+    button.classList.toggle('is-on', button.dataset.view === name);
+  }
+}
+
+function setView(name) {
+  if (!camera || !orbit || !current) return;
+  const targetZ = current.config.layout === 'axial' ? current.config.width / 2 : current.config.plate / 2;
+  const span = Math.max(
+    current.config.diameter,
+    current.config.layout === 'axial' ? current.config.width : current.config.diameter
+  );
+  const dist = span * 1.55;
+  const corner = dist * 0.72;
+  const lift = dist * 0.62;
+  const poses = {
+    front: [0, -dist, targetZ],
+    back: [0, dist, targetZ],
+    left: [-dist, 0, targetZ],
+    right: [dist, 0, targetZ],
+    top: [0, -span * 0.04, targetZ + dist],
+    bottom: [0, span * 0.04, targetZ - dist],
+    'iso-fr': [corner, -corner, targetZ + lift],
+    'iso-fl': [-corner, -corner, targetZ + lift],
+    'iso-br': [corner, corner, targetZ + lift],
+    'iso-bl': [-corner, corner, targetZ + lift]
+  };
+  const pose = poses[name];
+  if (!pose) return;
+  orbit.target.set(0, 0, targetZ);
+  camera.up.set(0, 0, 1);
+  camera.position.set(pose[0], pose[1], pose[2]);
+  const damping = orbit.enableDamping;
+  orbit.enableDamping = false;
+  orbit.update();
+  orbit.enableDamping = damping;
+  markView(name);
 }
 
 function applyVisibility() {
@@ -319,11 +444,13 @@ function init3D() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xc5d0dc);
   camera = new THREE.PerspectiveCamera(35, 1, 0.1, 5000);
+  camera.up.set(0, 0, 1);
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   $('canvas').append(renderer.domElement);
   orbit = new OrbitControls(camera, renderer.domElement);
   orbit.enableDamping = true;
+  orbit.addEventListener('start', () => markView(''));
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d0d0, 2.4));
   const light = new THREE.DirectionalLight(0xffffff, 2.6);
   light.position.set(80, -120, 160);
@@ -352,15 +479,20 @@ function init3D() {
 
 $('explode').oninput = applyPoses;
 for (const id of ['show-plates', 'show-plugs', 'show-tubes']) $(id).onchange = applyVisibility;
+$('views').onclick = (event) => {
+  const button = event.target.closest('button');
+  if (button) setView(button.dataset.view);
+};
 
 const incoming = new URL(location.href).searchParams;
 if ([...incoming.keys()].some((key) => keys.includes(key))) {
   for (const key of keys) {
     if (!incoming.has(key)) continue;
-    if (key === 'joined') $('joined').checked = incoming.get(key) === '1' || incoming.get(key) === 'true';
+    if (flags.has(key)) $(key).checked = incoming.get(key) === '1' || incoming.get(key) === 'true';
     else $(key).value = incoming.get(key);
   }
   matchPreset();
+  $('recipe').value = 'custom';
 }
 layoutNotes();
 schedule();
